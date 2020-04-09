@@ -1,4 +1,25 @@
-# Rocket.Chat Python Bot for time booking with Kimai
+<<<<<<< HEAD
+# Instructions for MindGame
+
+Welcome to The Mind!
+This is a community game, probably the most cooperative game of all. You must leave your individuality behind and think and act as one. Find the group consciousness!
+About the rules:
+There are cards from 1 to 100 inclusive.
+Depending on the round, you each receive a corresponding number of cards. 1 each in the first round, 2 in the second, and so on.
+Then you must discard your card(s), but in the correct overall order. 
+The group has 3 lives, every time someone makes a mistake, one life is deducted.
+You get one life added if you pass round 3, 6 and 9.
+Good luck!
+
+Commands:
+- Play - join the game
+- Play @user - invite yourself plus one or more players
+- Start - starts the game    
+- Pp - play your lowest card
+- Reset - remove all players and stop a running game
+
+# Rocket.Chat Python Bot Playground
+
 
 Based on a Python Connector SDK for RocketChat Realtime API.
 Thanks to https://github.com/diegodorgam/python-rocketchat-bot
@@ -8,6 +29,7 @@ Thanks to https://github.com/diegodorgam/python-rocketchat-bot
 
 Tested with python3.
 - `pip3 install python-meteor`
+- `pip3 install requests`
 - `python3 run.py`
 
 
@@ -25,55 +47,4 @@ If anything needs debugging, open logs
 Create user with Role Bot, and update the login in `run.py`
 - username and password 
 - your rocket.chat url:port
-
-
-## Usage
-
-In any project channel say: `book 2h @felix @markus`
-
-The bot books via Kimai API 
-- 2h 
-- for the project, which is called exactly as the channel
-- for all mentioned people, which need to have same Rocket.Chat display name 'name' as users have in Kimai
-
-If you say in any channel `book 2h @felix #ownCloud`
-the mentioned channel(s) are used for project(s) instead of the channel you posted the message in.
-
-## Rocket.Chat SDK
-
-### Receive messages
-
-Register for messages `bot.addPrefixHandler('book', bookingHandler)`
-Calls function `bookingHandler(bot, message)` when a message starts with "book" in any channel.
-
-Available infos in the message for e.g "book 2h @felix #test" sent in channel General
-```
-{ '_id': 'Fha8KYoBvtFjmKg9P',
-  '_updatedAt': datetime.datetime(2020, 4, 9, 12, 44, 33, 135000, tzinfo=datetime.timezone.utc),
-  'channels': [ { '_id': 'Eso7XADufNbkq26n7', 
-                  'name': 'test'}],
-  'mentions': [ { '_id': 'ND4wEbMZAAFYL5Cuu',
-                  'name': 'Felix Böhm',
-                  'username': 'felix'}],
-  'msg': 'book 2h @felix #test',
-  'rid': 'GENERAL',
-  'ts': datetime.datetime(2020, 4, 9, 12, 44, 33, 24000, tzinfo=datetime.timezone.utc),
-  'u': { '_id': 'nwg5mPwuGCJEpwACr', 
-         'name': 'Admin', 
-         'username': 'admin'}
-}
-```
-
-- message['msg']
-- message['rid']
-- message['u']['name']
-
-
-### Send a message
-
-The bot can send messages to any channel.
-If you want to return in the same channel, use `message['rid']`
-
-`bot.sendMessage(message['rid'], "Bot says hello")`
-
 

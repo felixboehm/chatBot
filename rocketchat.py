@@ -1,5 +1,6 @@
 import time
 import datetime
+import requests
 
 from DDPClient import DDPClient
 
@@ -345,6 +346,9 @@ class RocketChatBot():
         self.username = user
         self.password = password
         self.server = server
+        self.ssl = ssl
+        self.token = None
+        self.userId = None
         self.debug = True
 
         self._prefixs = []
@@ -369,14 +373,16 @@ class RocketChatBot():
     """
     def _connected(self):
         print("[+] rocketchat: connected")
-        self.client.subscribe('stream-room-messages', ['__my_messages__', False], self.cb1)
+        self.client.login(self.username, self.password.encode('utf-8'), callback=self.cb)
 
     def _closed(self, code, reason):
         print('[-] rocketchat: connection closed: %s (%d)' % (reason, code))
 
     def _logged_in(self, data):
         print('[+] rocketchat: logged in')
-        print(data)
+        self.token = data['token']
+        self.userId = data['id']
+        self.client.subscribe('stream-room-messages', ['__my_messages__', False], self.cb1)
 
     def _failed(self, collection, data):
         print('[-] %s' % str(data))
@@ -421,8 +427,8 @@ class RocketChatBot():
         print(error)
 
     def cb1(self, data):
-        # if not self.debug:
-        #     return
+        if not self.debug:
+            return
         if(len(data)>0):
             print(data)
             self._incoming(data)
@@ -435,9 +441,6 @@ class RocketChatBot():
     def _incoming(self, data):
         print("[+] Message from %s: %s" % (data['u']['username'], data['msg']))
         print("[+] Incoming Message")
-        #self.sendMessage(data['rid'],  "I hear you")
-        # print(data)
-        #Check if message was sent by another user
 
         for prefix in self._prefixs:
             if data['msg'].startswith(prefix['prefix']):
@@ -451,7 +454,6 @@ class RocketChatBot():
     """
     def start(self):
         self.client.connect()
-        self.client.login(self.username, self.password.encode('utf-8'), callback=self.cb)
 
         # let's yeld to background task
         while True:
@@ -462,3 +464,44 @@ class RocketChatBot():
 
     def sendMessage(self, id, message):
         self.client.call('sendMessage', [{'msg': message, 'rid': id}], self.cb)
+
+    def post(self, method, params=None):
+        headers = {
+            'X-User-Id': self.userId,
+            'X-Auth-Token': self.token,
+            'Content-type': 'application/json',
+        }
+        if self.ssl:
+            protocol = 'https://'
+        else:
+            protocol = 'http://'
+
+        res = requests.post(
+            protocol + self.server + "/api/v1/" + method,
+            json = params,
+            headers = headers
+        )
+        data = {"response": res, "data": None}
+        if res and res.status_code == 200 and 'json' in res.headers.get('Content-Type'):
+            data["data"] = res.json()
+        return data
+
+    def get(self, method, params=None):
+        headers = {
+            'X-User-Id': self.userId,
+            'X-Auth-Token': self.token,
+        }
+        if self.ssl:
+            protocol = 'https://'
+        else:
+            protocol = 'http://'
+
+        res = requests.get(
+            protocol + self.server + "/api/v1/" + method,
+            params,
+            headers = headers
+        )
+        data = {"response": res, "data": None}
+        if res and res.status_code == 200 and 'json' in res.headers.get('Content-Type'):
+            data["data"] = res.json()
+        return data
