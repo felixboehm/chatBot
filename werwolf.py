@@ -1,167 +1,34 @@
-from rocketchat import RocketChatBot, RocketChatClient
 import time
 import random
-from instructionsWW import showHelpW
+from chatbot import ChatBot
+# from playerlist import PlayerList
+from instructionsWW import showHelp
 
 server = 'localhost:3000'
 botUser = 'botty'
 botPass = 'botty'
 
-bot = RocketChatBot(botUser, botPass, server=server, ssl=False)
+CHANNEL_WOLF = 'Woelfe'
+CHANNEL_PLAYER = 'Werwolf'
 
-#Variables
-roomIDs = {}      # Dictonary user -> roomId
 players = set()   # Set for unique values
 playerInfo = {}   # Dictonary user -> character
-characters = ["Werwolf", "Dorfbewohner", "Dorfbewohner", "Dorfbewohner", "Seher", "Beschützer"]
 
-def getUsers():
-  users = bot.get("users.list")
-  if users['data'] and len(users['data']) > 0:
-    for user in users['data']['users']:
-      print("User ", user['username'], user['_id'])
-      roomIDs[user['username']] = user['_id']
+def removeWolves(bot):
+  wolves = bot.listGroupMembers(CHANNEL_WOLF)
+  for member in wolves['data']['members']:
+    name = member['username']
+    if name != 'botty':
+      bot.kickFromGroup(CHANNEL_WOLF, name)
 
-def getChannels():
-  groups = bot.get("groups.list")
-  if groups['data'] and len(groups['data']) > 0:
-    for group in groups['data']['groups']:
-      print("Group ", group['name'], group['_id'])
-      roomIDs[group['name']] = group['_id']
-  
-  channels = bot.get("channels.list")
-  if channels['data'] and len(channels['data']) > 0:
-    for channel in channels['data']['channels']:
-      print("Channel ", channel['name'], channel['_id'])
-      roomIDs[channel['name']] = channel['_id']
-
-def createDirectChat(name):
-  def storeRoom(error, data):
-    if not error:
-      roomIDs[name] = data['rid']
-  if not name in roomIDs:
-    bot.client.call('createDirectMessage', [name], storeRoom)
-
-def createChannel(name):
-  def storeRoom(error, data):
-    if not error:
-      roomIDs[name] = data['rid']
-  if not name in roomIDs:
-    bot.client.call('createChannel', [name, [botUser], False], storeRoom)
-
-def createPrivateChat(name):
-  def storeRoom(error, data):
-    if not error:
-      roomIDs[name] = data['rid']
-  if not name in roomIDs:
-    bot.client.call('createPrivateGroup', [name, []], storeRoom)
-
-def deleteMessage(id):
-  def deleteCallback(error, data):
-    return
-  bot.client.call('deleteMessage', [{'_id': id}], deleteCallback)
-
-def updateMessage(message):
-  def updateCallback(error, data):
-    return
-  bot.client.call('updateMessage', [message], updateCallback)
-
-def listGroupMembers(group):
-  return bot.get('groups.members?roomId=' + roomIDs[group])
-
-def inviteToGroup(group, name):
-  invite = {
-    "roomId": roomIDs[group],
-    "userId": roomIDs[name]
+def setupInfo():
+  return {
+    "character": "?",
+    "alive": True
   }
-  answer = bot.post('groups.invite', invite)
-  print("LULULU Invite", answer)
 
-def kickFromGroup(group, name):
-  invite = {
-    "roomId": roomIDs[group],
-    "userId": roomIDs[name]
-  }
-  bot.post("groups.kick", invite)
-
-def checkChannel(message, channel):
-  return roomIDs[channel] == message['rid']
-
-def isAlive(message):
-  name = message['u']['username']
-  return playerInfo[name]['alive'] == True
-
-def startGame(bot, message): # Adding players
-  global players
-  if not checkChannel(message, 'Werwolf'):
-    return
-  
-  sender = message['u']['username']
-  players.add(sender)
-
-  for name in message['mentions']:
-    players.add(name['username'])
-
-  names = ""
-  for name in players:
-    createDirectChat(name)
-    names += "@" + name + " "
-  
-  message['msg'] = "[Werwolf] Spieler hinzugefügt: " + names
-  updateMessage(message)
-
-
-def resetGame(bot, message):  # Reset game
-  global players
-  if not checkChannel(message, 'Werwolf'):
-    return
-  
-  players = set()
-
-  bot.sendMessage(message['rid'], "[Werwolf] Re-Starting. Alle Spieler gelöscht. Starte ein neues Spiel mit \"Join\"")
-  message['msg'] = "Spiel abbrechen"
-  updateMessage(message)
-
-
-def nextRound (bot, message):
-  bot.sendMessage(message['rid'], "[Werwolf] Es wird Nacht in Cavallino und die Werwölfe treffen sich im #Wölfe chat.")
-
-
-def setup (bot, message):  # Setup
-  global players, playerInfo, characters
-  if not checkChannel(message, 'Werwolf'):
-    return
-  
-  createChannel("Werwolf")
-  createPrivateChat('Woelfe')
-  roomIDs['Werwolf'] = message['rid']
-
-  if len(players) < 6:
-    a = 6 - len(players)
-    bot.sendMessage(message['rid'], "Zu wenig Spieler. Noch " + str(a) + " Spieler")
-    return
-
-  message['msg'] = "[Werwolf] Los geht's!"
-  updateMessage(message)
-
-  setupCharacters()
-
-  playerInfo = {}
-  for name in players:  
-    playerInfo[name] = {
-      "character": random.choice(characters),
-      "alive": True
-    }
-    if playerInfo[name]['character'] == "Werwolf":
-      inviteToChannel('Woelfe', name)
-    
-    characters.remove(playerInfo[name]['character'])
-    bot.sendMessage(roomIDs[name], "[Werwolf] Deine Rolle: " + playerInfo[name]['character']) 
-
-  nextRound(bot, message)
-
-
-def setupCharacters():
+def setupCharacters(bot):
+  global players, playerInfo
   characters = ["Werwolf", "Dorfbewohner", "Dorfbewohner", "Dorfbewohner", "Seher", "Beschützer"]
   if len(players) >=7:
     characters.append("Dorfbewohner")
@@ -171,75 +38,249 @@ def setupCharacters():
     characters.append("Dorfbewohner")
   if len(players) >=10:
     characters.append("Werwolf")
+  
+  playerInfo = {}
+  removeWolves(bot)
 
-def killVictim (bot, message):
-  if checkChannel(message, 'Woelfe'):
+  for name in players:
+    playerInfo[name] = setupInfo()
+    playerInfo[name]['character'] = random.choice(characters)
+    if playerInfo[name]['character'] == "Werwolf":
+      bot.inviteToGroup(CHANNEL_WOLF, name)
+    
+    characters.remove(playerInfo[name]['character'])
+    bot.sendMessage(bot.id(name), "[Werwolf] Deine Rolle: " + playerInfo[name]['character']) 
+
+def isAlive(name):
+  return playerInfo[name]['alive'] == True
+
+### COMMANDS ###
+
+def addPlayers(bot, message): # Adding players
+  global players, playerInfo
+  if not bot.checkId(CHANNEL_PLAYER, message['rid']):  # Written in channel CHANNEL_PLAYER?
+    return
+  
+  sender = message['u']['username']   # Add sender of 'start' to players
+  players.add(sender)
+  playerInfo[sender] = setupInfo()
+
+  for user in message['mentions']:   # Add all mentions to players
+    name = user['username']
+    players.add(name)
+    playerInfo[name] = setupInfo()
+
+  names = ""
+  for name in players:   # Creates direct Chat with all players
+    bot.createDirectChat(name)
+    names += "@" + name + " "
+  
+  message['msg'] = "[Players] Spieler hinzugefügt: " + names
+  bot.updateMessage(message)
+
+
+def resetGame(bot, message):  # Reset game
+  global players, playerInfo
+  if not bot.checkId('Werwolf', message['rid']):
+    return
+
+  players = set()
+  setupCharacters(bot)
+
+  bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Re-Starting. Tritt der nächsten Runde bei mit: 'join [@user]'")
+  message['msg'] = "Spiel abbrechen"
+  bot.updateMessage(message)
+
+
+def nextRound (bot, message):
+  bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Es wird Nacht in Cavallino und die Werwölfe treffen sich im #" + CHANNEL_WOLF + " chat.")
+  bot.sendMessage(bot.id(CHANNEL_WOLF), "[Werwolf] Wählt aus: 'bite @username'")
+
+def setup(bot, message):  # Setup
+  global players, playerInfo
+  if not bot.checkId('Werwolf', message['rid']):
+    return
+
+  bot.storeChannelId('Werwolf', message['rid'])
+
+  if len(players) < 6:
+    a = 6 - len(players)
+    bot.sendMessage(message['rid'], "Zu wenig Spieler. Noch " + str(a) + " Spieler")
+    return
+
+  message['msg'] = "[Werwolf] Los geht's!"
+  bot.updateMessage(message)
+
+  setupCharacters(bot)
+  nextRound(bot, message)
+
+def killVictim(bot, message):
+  if not bot.checkId(CHANNEL_WOLF, message['rid']):   # Correct channel?
     bot.sendMessage(message['rid'], "[Werwolf] Hier wird nicht gebissen")
     return
   
-  if not isAlive(message):
-    bot.sendMessage(message['rid'], "[Werwolf] Du bist schon tot")
-    return
-  
-  if len(message['mentions']) != 1:
+  if len(message['mentions']) != 1:   # Only/at least one mentioned?
     bot.sendMessage(message['rid'], "[Werwolf] Wen wollt ihr beißen?")
     return
-
-  name = message['mentions'][0]['username']
+  
+  name = message['mentions'][0]['username']   # Player to kill alive?
+  print(name)
+  print(playerInfo)
   if playerInfo[name]['alive'] == False:
     bot.sendMessage(message['rid'], "[Werwolf] Diser Spieler ist schon tot")
     return
   
   playerInfo[name]['alive'] = False
-  bot.sendMessage(roomIDs['Werwolf'], "[Werwolf] " + name + " wurde gebissen")
+  bot.sendMessage(bot.id('Werwolf'), "[Werwolf] Ein neuer Tag in Cavallino. " + name + " wurde gebissen")
+  bot.sendMessage(bot.id('Werwolf'), "[Werwolf] " + name + " war " + playerInfo[name]['character'])
 
+  if playerInfo[name]['character'] == 'Werwolf':   # Kickgroup if WerwolCHANNEL_WOLFSf
+    bot.kickFromGroup(CHANNEL_WOLF, name)
 
-def hangSuspect (bot, message): 
+  if endCheck(bot, message):
+    return
+
+  time.sleep(2)
+  bot.sendMessage(bot.id('Werwolf'), "[Werwolf] Entscheidet nun gemeinsam wen ihr hängen wollt.")
+
+def hangSuspect(bot, message): 
+  if not bot.checkId('Werwolf', message['rid']):   # Correct channel?
+    bot.sendMessage(message['rid'], "[Werwolf] Falscher Channel. Spiele Werwolf in #" + CHANNEL_PLAYER)
+    return
+  
+  sender = message['u']['username']   # Writer alive?
+  if not isAlive(sender):
+    bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Du bist schon tot")
+    return
+
+  if len(message['mentions']) != 1:   # Only/at least one mentioned?
+    bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Wen wollt ihr hängen?")
+    return
+
+  name = message['mentions'][0]['username']   # Player to hang alive?
+  if playerInfo[name]['alive'] == False:
+    bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Diser Spieler ist schon tot")
+    return
+
   name = message['mentions'][0]['username']
   playerInfo[name]['alive'] = False
   
-  bot.sendMessage(message['rid'], "[Werwolf] " + name['username'] + "wurde gehängt")
+  if playerInfo[name]['character'] == 'Werwolf':   # Kick from group if Werwolf
+    bot.kickFromGroup(CHANNEL_WOLF, name)
+
+  bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] " + name + " wurde gehängt")
+  bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] " + name + " war " + playerInfo[name]['character'])
+
+  if endCheck(bot, message):
+    return
+  
+  time.sleep(2)
   nextRound(bot, message)
 
+def endCheck(bot, message): 
+  aliveCount = 0
+  wolfsCount = 0
+  othersCount = 0
 
-bot.addPrefixHandler('rules', showHelpW)
-bot.addPrefixHandler('help', showHelpW)
-bot.addPrefixHandler('Rules', showHelpW)
-bot.addPrefixHandler('Help', showHelpW)
+  for player in players:
+    if playerInfo[player]['alive']:
+        aliveCount += 1
+        if playerInfo[player]['character'] == "Werwolf":
+            wolfsCount += 1
+        else:
+            othersCount += 1
 
-bot.addPrefixHandler('Join', startGame)
-bot.addPrefixHandler('join', startGame)
+  if wolfsCount == 0:
+    bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Die Dorfbewohner haben gewonnen, alle Werwölfe sind tot!")
+    resetGame(bot, message)
+    return True
+  
+  if othersCount == 0:
+    bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Werwolf] Die Werwölfe haben gewonnen, alle Dorfbewohner wurden getötet!")
+    resetGame(bot, message)
+    return True
+  
+  return False
 
-bot.addPrefixHandler('Go', setup)
-bot.addPrefixHandler('go', setup)
+def makeMeWolf(bot, message):
+  global playerInfo
+  if not bot.checkId(CHANNEL_PLAYER, message['rid']):
+    return
+  removeWolves(bot)
+  sender = message['u']['username']
+  character = playerInfo[sender]['character']
+  playerInfo[sender]['character'] = "Werwolf"
+  bot.inviteToGroup(CHANNEL_WOLF, sender)
+  for name in players:
+    if playerInfo[name]['character'] == "Werwolf" and name != sender:
+      playerInfo[name]['character'] = character
+      return
 
-bot.addPrefixHandler('Reset', resetGame)
-bot.addPrefixHandler('reset', resetGame)
-bot.addPrefixHandler('Restart', resetGame)
-bot.addPrefixHandler('restart', resetGame)
+def addall(bot, message):
+  global players, playerInfo
+  if not bot.checkId(CHANNEL_PLAYER, message['rid']):
+    return
+  players = set(['admin', 'felix', 'tina', 'user1', 'user2', 'user3'])
+  for name in players:
+    playerInfo[name] = setupInfo()
+  bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Players] " + str(len(players)))
 
-bot.addPrefixHandler('Bite', killVictim)
-bot.addPrefixHandler('bite', killVictim)
+def listPlayers(bot, message):
+  global players, playerInfo
+  if not bot.checkId(CHANNEL_PLAYER, message['rid']):
+    return
+  bot.sendMessage(bot.id(CHANNEL_PLAYER), "[Players] " + str(len(players)))
+  for name in players:
+    s = "[Players]"
+    if playerInfo[name] and playerInfo[name]['alive']:
+      s += " :innocent: "
+    else:
+      s += " :ghost: "
+    # if playerInfo[name] and playerInfo[name]['character']:
+    #   s += " is a " + str(playerInfo[name]['character'])
+    bot.sendMessage(bot.id(CHANNEL_PLAYER), s + name)
+  
+def main():
+  bot = ChatBot(botUser, botPass, server=server, ssl=False)
+  bot.debug = False
 
-bot.addPrefixHandler('Hang', hangSuspect)
-bot.addPrefixHandler('hang', hangSuspect)
+  def onLogin(data):
+    bot.getUsers()
+    bot.getGroups()
+    bot.getChannels()
+    bot.createChannel(CHANNEL_PLAYER)
+    bot.createPrivateChat(CHANNEL_WOLF)
+    removeWolves(bot)
 
-def testi (bot, message):
-  wolves = listGroupMembers('Woelfe')
-  print("LULULU List ", wolves)
+  bot.client.on('logged_in', onLogin)
+  
+  bot.addPrefixHandler('wolf', makeMeWolf)
+  bot.addPrefixHandler('addall', addall)
+  bot.addPrefixHandler('list', listPlayers)
 
-  # inviteToGroup('Woelfe', 'admin')
-  kickFromGroup('Woelfe', 'admin')
+  bot.addPrefixHandler('rules', showHelp)
+  bot.addPrefixHandler('help', showHelp)
+  bot.addPrefixHandler('Rules', showHelp)
+  bot.addPrefixHandler('Help', showHelp)
 
-bot.addPrefixHandler('test', testi)
+  bot.addPrefixHandler('Join', addPlayers)
+  bot.addPrefixHandler('join', addPlayers)
 
-def onLogin(data):
-  getUsers()
-  getChannels()
-  createChannel("Werwolf")
-  createPrivateChat('Woelfe')
+  bot.addPrefixHandler('Go', setup)
+  bot.addPrefixHandler('go', setup)
 
-bot.client.on('logged_in', onLogin)
+  bot.addPrefixHandler('Reset', resetGame)
+  bot.addPrefixHandler('reset', resetGame)
+  bot.addPrefixHandler('Restart', resetGame)
+  bot.addPrefixHandler('restart', resetGame)
 
-bot.debug = False
-bot.start()
+  bot.addPrefixHandler('Bite', killVictim)
+  bot.addPrefixHandler('bite', killVictim)
+
+  bot.addPrefixHandler('Hang', hangSuspect)
+  bot.addPrefixHandler('hang', hangSuspect)
+
+  bot.start()
+
+if __name__ == '__main__':
+  main()

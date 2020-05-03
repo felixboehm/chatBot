@@ -1,9 +1,9 @@
-def showHelpW(bot, message):
+def showHelp(bot, message):
     helpText = """** HowTo Play "Werwolf” **
     Commands:
-    `Join` trete dem Spiel bei
-    `Join @player` lade dich und einen anderen Spieler ein
-    `Go` starte das Spiel
+    `join` trete dem Spiel bei
+    `join @player` lade dich und einen anderen Spieler ein
+    `go` starte das Spiel
     `bite @player` Werwölfe töten ihr Opfer
     `hang @player` Dorfbewohner hängen den Verdächtigen
     `restart` stopt das Spiel und löscht alle Teilnehmer"""

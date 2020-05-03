@@ -439,8 +439,7 @@ class RocketChatBot():
     Internal dispatcher
     """
     def _incoming(self, data):
-        print("[+] Message from %s: %s" % (data['u']['username'], data['msg']))
-        print("[+] Incoming Message")
+        print("[+] Incoming Message from %s: %s" % (data['u']['username'], data['msg']))
 
         for prefix in self._prefixs:
             if data['msg'].startswith(prefix['prefix']):
